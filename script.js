@@ -53,22 +53,31 @@ class Particle {
 
         // Size
         this.size = Math.random() * PARTICLE_SIZE_MAX + PARTICLE_SIZE_MIN;
-        this.halfSize = this.size / 2;
+        // new properties for reactive effects
+        this.baseLightness = 60;
+        this.baseSize = this.size;
+        this.currentLightness = this.baseLightness;
+        this.currentSize = this.baseSize;
+
+        this.halfSize = this.currentSize / 2;
         // For triangle drawing, side length is 1.5 * size, so halfSide is 0.75 * size
-        this.triangleHalfBase = (this.size * 1.5) / 2;
+        this.triangleHalfBase = (this.currentSize * 1.5) / 2;
         // Assuming equilateral triangle for simplicity in drawing, height relates to side.
         // For an equilateral triangle: height = (sqrt(3)/2) * side.
         // The current drawing creates an isosceles triangle where height = side.
         // The points were (0, -side/2), (side/2, side/2), (-side/2, side/2)
         // Let's stick to the original visual proportions for the triangle by caching these:
-        this.trianglePointY = (this.size * 1.5) / 2; // This is effectively "side/2" from original
+        this.trianglePointY = (this.currentSize * 1.5) / 2; // This is effectively "side/2" from original
 
 
         // Color (HSL format)
         this.h = Math.random() * 360; // Hue: 0-360, represents the color wheel
         this.s = 70;                  // Saturation: 0-100%, intensity of the color
-        this.l = 60;                  // Lightness: 0-100%, brightness of the color
-        this.color = `hsl(${this.h}, ${this.s}%, ${this.l}%)`;
+        // Initialize target lightness and size to base values
+        this.l = this.baseLightness;
+        this.size = this.baseSize; // Initialize target size to base size
+        // Update color string to use this.currentLightness
+        this.color = `hsl(${this.h}, ${this.s}%, ${this.currentLightness}%)`;
 
         // Shape
         this.shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
@@ -88,6 +97,7 @@ class Particle {
         this._updateShape();
         this._applyWiggle();
         this._handleInteractions();
+        this._updateCurrentVisuals(); // Smoothly update visual properties
         this._capSpeed();
         this._updatePosition();
         this._applyBoundaryConditions();
@@ -96,7 +106,8 @@ class Particle {
     /** @private Updates the particle's color, cycling through hues. */
     _updateColor() {
         this.h = (this.h + 1) % 360; // Increment hue and wrap around 360
-        this.color = `hsl(${this.h}, ${this.s}%, ${this.l}%)`;
+        // Update this.color using this.currentLightness
+        this.color = `hsl(${this.h}, ${this.s}%, ${this.currentLightness}%)`;
     }
 
     /** @private Handles shape rotation and morphing to the next shape in the sequence. */
@@ -110,6 +121,22 @@ class Particle {
         }
     }
 
+    /** @private Smoothly updates current visual properties towards target values. */
+    _updateCurrentVisuals() {
+        const lerpFactor = 0.1;
+        this.currentLightness += (this.l - this.currentLightness) * lerpFactor;
+        this.currentSize += (this.size - this.currentSize) * lerpFactor;
+
+        // Small threshold to snap to target value if very close - avoids tiny fluctuations
+        // and ensures it can reach the target.
+        if (Math.abs(this.l - this.currentLightness) < 0.05) {
+            this.currentLightness = this.l;
+        }
+        if (Math.abs(this.size - this.currentSize) < 0.05) {
+            this.currentSize = this.size;
+        }
+    }
+
     /** @private Applies a gentle sinusoidal wiggle force to the particle's velocity. */
     _applyWiggle() {
         this.wiggleAngle += 0.05;
@@ -120,25 +147,54 @@ class Particle {
     /** @private Handles interactions with active touch points (including mouse). */
     _handleInteractions() {
         if (activeTouches.length > 0) {
+            let totalLightnessBoost = 0;
+            let totalSizeBoost = 0;
+            let interactionCount = 0;
+
             activeTouches.forEach(touch => {
                 let dxParticleTouch = this.x - touch.x;
                 let dyParticleTouch = this.y - touch.y;
-                // Compare squared distances to avoid Math.sqrt for the check
                 let squaredDistance = dxParticleTouch * dxParticleTouch + dyParticleTouch * dyParticleTouch;
 
-                // distance > 0 check becomes squaredDistance > very_small_number (e.g. 0.001 to avoid issues at exact same point)
                 if (squaredDistance < SQUARED_INTERACTION_RADIUS && squaredDistance > 0.001) {
+                    const distance = Math.sqrt(squaredDistance);
+                    let proximityFactor = 1 - (distance / INTERACTION_RADIUS);
+                    proximityFactor = Math.max(0, Math.min(1, proximityFactor)); // Clamp 0-1
+
+                    const maxLightnessBoost = 30;
+                    const maxSizeBoost = 4;
+
+                    totalLightnessBoost += maxLightnessBoost * proximityFactor;
+                    totalSizeBoost += maxSizeBoost * proximityFactor;
+                    interactionCount++;
+
+                    // Original interaction physics (attraction/swirl)
                     let forceX = (touch.x - this.x);
                     let forceY = (touch.y - this.y);
-
-                    // Apply forces: direct attraction and a swirling component
                     let interactionVx = (forceX * DIRECT_ATTRACTION_FACTOR) + (forceY * SWIRL_FACTOR);
                     let interactionVy = (forceY * DIRECT_ATTRACTION_FACTOR) - (forceX * SWIRL_FACTOR);
-
                     this.vx += interactionVx;
                     this.vy += interactionVy;
                 }
             });
+
+            if (interactionCount > 0) {
+                // Average the boosts if multiple interactions affect the same particle
+                this.l = this.baseLightness + (totalLightnessBoost / interactionCount);
+                this.size = this.baseSize + (totalSizeBoost / interactionCount);
+
+                // Clamp lightness and size
+                this.l = Math.max(0, Math.min(100, this.l));
+                this.size = Math.max(1, this.size); // Ensure size remains positive
+            } else {
+                // No active interaction within radius, revert to base (placeholder for now)
+                this.l = this.baseLightness;
+                this.size = this.baseSize;
+            }
+        } else {
+            // No active touches on screen, revert to base (placeholder for now)
+            this.l = this.baseLightness;
+            this.size = this.baseSize;
         }
     }
 
@@ -176,6 +232,11 @@ class Particle {
      * Draws the particle on the canvas.
      */
     draw() {
+        // Update size-related properties based on this.currentSize
+        this.halfSize = this.currentSize / 2;
+        this.triangleHalfBase = (this.currentSize * 1.5) / 2;
+        this.trianglePointY = (this.currentSize * 1.5) / 2;
+
         ctx.fillStyle = this.color;
         ctx.save(); // Save current canvas context state (transformations, styles)
         ctx.translate(this.x, this.y); // Move canvas origin to particle's position
@@ -183,11 +244,13 @@ class Particle {
 
         ctx.beginPath();
         if (this.shape === 'circle') {
-            ctx.arc(0, 0, this.size, 0, Math.PI * 2); // Draw circle centered at new origin
+            // Use this.currentSize for drawing
+            ctx.arc(0, 0, this.currentSize, 0, Math.PI * 2); // Draw circle centered at new origin
         } else if (this.shape === 'square') {
-            ctx.rect(-this.halfSize, -this.halfSize, this.size, this.size); // Draw square centered
+            // Use this.currentSize for drawing
+            ctx.rect(-this.halfSize, -this.halfSize, this.currentSize, this.currentSize); // Draw square centered
         } else if (this.shape === 'triangle') {
-            // Using the cached this.trianglePointY which is equivalent to original side/2
+            // Use this.currentSize for drawing (via trianglePointY)
             ctx.moveTo(0, -this.trianglePointY);      // Top point
             ctx.lineTo(this.trianglePointY, this.trianglePointY);  // Bottom-right point
             ctx.lineTo(-this.trianglePointY, this.trianglePointY); // Bottom-left point
