@@ -23,6 +23,15 @@ Here's a list of potential improvements and new features that could be added to 
     - Investigate and implement optimizations to ensure smooth animation, especially with a larger number of particles.
 - **Interaction Modes:**
     - Introduce different ways particles interact with input (e.g., attract to cursor, form specific shapes or patterns).
+- **Graphical Effects & Enhancements:**
+    - Implement particle trails for a visual history of movement.
+    - Add color cycling effects or dynamic color changes based on interactions.
+    - Explore shape morphing or particle merging/splitting behaviors.
+    - Investigate post-processing effects like bloom, motion blur, or scan lines for a richer visual experience.
+    - Allow particles to be different shapes (e.g., squares, triangles, lines) instead of just circles.
+    - Add an option for particles to leave a fading trail.
+    - Implement a "gravity" mode where particles are pulled towards a certain point or line.
+    - Add "connector lines" between nearby particles.
 - **Background Customization:**
     - Allow users to change the background color.
     - Implement functionality to use an image as the background.
