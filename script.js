@@ -1,6 +1,6 @@
 const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        let width, height, particles = [], mouse = { x: null, y: null };
+        let width, height, particles = [], activeTouches = []; // Replaced mouse with activeTouches
         const shapes = ['circle', 'square', 'triangle'];
 
         // Resize canvas to fit window
@@ -20,7 +20,7 @@ const canvas = document.getElementById('canvas');
                 this.y = Math.random() * height;
                 this.vx = (Math.random() - 0.5) * 2;
                 this.vy = (Math.random() - 0.5) * 2;
-                this.size = Math.random() * 3 + 1;
+                this.size = Math.random() * 4 + 2; // Changed from Math.random() * 3 + 1;
                 this.h = Math.random() * 360;
                 this.s = 70;
                 this.l = 60;
@@ -46,19 +46,20 @@ const canvas = document.getElementById('canvas');
                 this.vx += Math.cos(this.wiggleAngle) * this.wiggleMagnitude;
                 this.vy += Math.sin(this.wiggleAngle) * this.wiggleMagnitude;
 
-                // Interact with touch/mouse
-                if (mouse.x && mouse.y) {
-                    const directAttractionFactor = 0.015; // Adjusted
-                    const swirlFactor = 0.05;      // Adjusted
-                    const interactionRadius = 150;
+                // Interact with touch/mouse (now activeTouches)
+                if (activeTouches.length > 0) {
+                    activeTouches.forEach(touch => {
+                        let dx_particle_touch = this.x - touch.x; // dx for distance calculation
+                        let dy_particle_touch = this.y - touch.y; // dy for distance calculation
+                        let dist = Math.sqrt(dx_particle_touch * dx_particle_touch + dy_particle_touch * dy_particle_touch);
 
-                    let dx_particle_mouse = this.x - mouse.x; // dx for distance calculation
-                    let dy_particle_mouse = this.y - mouse.y; // dy for distance calculation
-                    let dist = Math.sqrt(dx_particle_mouse * dx_particle_mouse + dy_particle_mouse * dy_particle_mouse);
+                        const directAttractionFactor = 0.015; // Keep existing tuned value
+                        const swirlFactor = 0.05;          // Keep existing tuned value
+                        const interactionRadius = 150;     // Keep existing tuned value
 
-                    if (dist < interactionRadius && dist > 0) { // Added dist > 0 to avoid issues if particle is exactly at mouse
-                        let forceX = (mouse.x - this.x);
-                        let forceY = (mouse.y - this.y);
+                        if (dist < interactionRadius && dist > 0) {
+                            let forceX = (touch.x - this.x);
+                            let forceY = (touch.y - this.y);
 
                         // Optional: Normalize if preferred, but factors are tuned for non-normalized
                         // let magnitude = Math.sqrt(forceX * forceX + forceY * forceY);
@@ -125,7 +126,7 @@ const canvas = document.getElementById('canvas');
 
         // Animation loop
         function animate() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.03)'; // Changed from 0.05 for longer trails
             ctx.fillRect(0, 0, width, height);
             particles.forEach(p => {
                 p.update();
@@ -135,19 +136,66 @@ const canvas = document.getElementById('canvas');
         }
         animate();
 
-        // Touch and mouse events
-        function handleTouch(e) {
+        // New Event Handlers
+        function handleTouchStart(e) {
             e.preventDefault();
-            const touch = e.touches ? e.touches[0] : e;
-            mouse.x = touch.clientX;
-            mouse.y = touch.clientY;
+            for (let touch of e.changedTouches) {
+                activeTouches.push({ id: touch.identifier, x: touch.clientX, y: touch.clientY });
+            }
         }
-        canvas.addEventListener('touchstart', handleTouch);
-        canvas.addEventListener('touchmove', handleTouch);
-        canvas.addEventListener('mousedown', handleTouch);
-        canvas.addEventListener('mousemove', handleTouch);
-        canvas.addEventListener('touchend', () => { mouse.x = null; mouse.y = null; });
-        canvas.addEventListener('mouseup', () => { mouse.x = null; mouse.y = null; });
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            for (let touch of e.changedTouches) {
+                let existingTouch = activeTouches.find(t => t.id === touch.identifier);
+                if (existingTouch) {
+                    existingTouch.x = touch.clientX;
+                    existingTouch.y = touch.clientY;
+                }
+            }
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            for (let touch of e.changedTouches) {
+                activeTouches = activeTouches.filter(t => t.id !== touch.identifier);
+            }
+        }
+
+        function handleMouseDown(e) {
+            e.preventDefault();
+            activeTouches = activeTouches.filter(t => t.id !== -1); // Remove old mouse touch if any
+            activeTouches.push({ id: -1, x: e.clientX, y: e.clientY });
+        }
+
+        function handleMouseMove(e) {
+            e.preventDefault();
+            let mouseTouch = activeTouches.find(t => t.id === -1);
+            if (mouseTouch) {
+                mouseTouch.x = e.clientX;
+                mouseTouch.y = e.clientY;
+            }
+        }
+
+        function handleMouseUp(e) {
+            e.preventDefault();
+            activeTouches = activeTouches.filter(t => t.id !== -1);
+        }
+
+        function handleMouseLeave(e) { // Optional but good for UX
+            activeTouches = activeTouches.filter(t => t.id !== -1);
+        }
+
+        // Update Event Listeners
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd);
+        canvas.addEventListener('touchcancel', handleTouchEnd); // Also use handleTouchEnd for touchcancel
+
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', handleMouseLeave); // Optional
 
         // Reset canvas
         function resetCanvas() {
