@@ -28,6 +28,8 @@ const canvas = document.getElementById('canvas');
                 this.shape = shapes[Math.floor(Math.random() * shapes.length)];
                 this.shapeAngle = 0; // For rotation
                 this.shapeChangeCounter = 0; // To trigger shape change
+                this.wiggleAngle = Math.random() * Math.PI * 2;
+                this.wiggleMagnitude = 0.1;
             }
             update() {
                 this.h = (this.h + 1) % 360; // Increment hue and wrap around 360
@@ -39,25 +41,55 @@ const canvas = document.getElementById('canvas');
                     let currentShapeIndex = shapes.indexOf(this.shape);
                     this.shape = shapes[(currentShapeIndex + 1) % shapes.length];
                 }
-                // Move particle
+                // Wiggle effect
+                this.wiggleAngle += 0.05;
+                this.vx += Math.cos(this.wiggleAngle) * this.wiggleMagnitude;
+                this.vy += Math.sin(this.wiggleAngle) * this.wiggleMagnitude;
+
+                // Interact with touch/mouse
+                if (mouse.x && mouse.y) {
+                    const directAttractionFactor = 0.015; // Adjusted
+                    const swirlFactor = 0.05;      // Adjusted
+                    const interactionRadius = 150;
+
+                    let dx_particle_mouse = this.x - mouse.x; // dx for distance calculation
+                    let dy_particle_mouse = this.y - mouse.y; // dy for distance calculation
+                    let dist = Math.sqrt(dx_particle_mouse * dx_particle_mouse + dy_particle_mouse * dy_particle_mouse);
+
+                    if (dist < interactionRadius && dist > 0) { // Added dist > 0 to avoid issues if particle is exactly at mouse
+                        let forceX = (mouse.x - this.x);
+                        let forceY = (mouse.y - this.y);
+
+                        // Optional: Normalize if preferred, but factors are tuned for non-normalized
+                        // let magnitude = Math.sqrt(forceX * forceX + forceY * forceY);
+                        // if (magnitude > 0) {
+                        //   forceX /= magnitude;
+                        //   forceY /= magnitude;
+                        // }
+
+                        let interactionVx = (forceX * directAttractionFactor) + (forceY * swirlFactor);
+                        let interactionVy = (forceY * directAttractionFactor) - (forceX * swirlFactor);
+
+                        this.vx += interactionVx;
+                        this.vy += interactionVy;
+                    }
+                }
+
+                // General speed capping (moved here)
+                const maxSpeed = 5; // Or make this a class/global property
+                let currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (currentSpeed > maxSpeed) {
+                    this.vx = (this.vx / currentSpeed) * maxSpeed;
+                    this.vy = (this.vy / currentSpeed) * maxSpeed;
+                }
+
+                // Finally, update position
                 this.x += this.vx;
                 this.y += this.vy;
 
                 // Bounce off edges
                 if (this.x < 0 || this.x > width) this.vx *= -1;
                 if (this.y < 0 || this.y > height) this.vy *= -1;
-
-                // Interact with touch/mouse
-                if (mouse.x && mouse.y) {
-                    let dx = this.x - mouse.x;
-                    let dy = this.y - mouse.y;
-                    let dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 100) {
-                        let angle = Math.atan2(dy, dx);
-                        this.vx += Math.cos(angle) * 0.5;
-                        this.vy += Math.sin(angle) * 0.5;
-                    }
-                }
             }
             draw() {
                 ctx.fillStyle = this.color;
