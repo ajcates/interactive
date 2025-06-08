@@ -10,7 +10,7 @@ let activeTouches = []; // Stores active touch points (and mouse as a special to
 // Defines the available shapes for particles. Used in Particle class for shape cycling.
 const SHAPES = ['circle', 'square', 'triangle'];
 const PARTICLE_COUNT = 100;
-const MAX_PARTICLE_SPEED = 5;
+const MAX_PARTICLE_SPEED = 7; // Increased from 5
 const PARTICLE_SIZE_MIN = 2;
 const PARTICLE_SIZE_MAX = 4;
 const SHAPE_CHANGE_INTERVAL = 200; // In frames
@@ -19,7 +19,7 @@ const SQUARED_INTERACTION_RADIUS = INTERACTION_RADIUS * INTERACTION_RADIUS;
 const DIRECT_ATTRACTION_FACTOR = 0.015;
 const SWIRL_FACTOR = 0.05;
 const MOUSE_IDENTIFIER = -1; // Special ID for mouse interaction to distinguish from touch events
-const MAX_PARTICLE_SPEED_SQUARED = MAX_PARTICLE_SPEED * MAX_PARTICLE_SPEED;
+const MAX_PARTICLE_SPEED_SQUARED = MAX_PARTICLE_SPEED * MAX_PARTICLE_SPEED; // Updated to 7*7 = 49
 
 // -- Canvas Setup --
 
@@ -86,7 +86,7 @@ class Particle {
 
         // Wiggle effect
         this.wiggleAngle = Math.random() * Math.PI * 2; // Initial angle for the sinusoidal wiggle movement
-        this.wiggleMagnitude = 0.1; // Amplitude of the wiggle, affecting how much it deviates
+        this.wiggleMagnitude = 0.3; // Increased from 0.1 - Amplitude of the wiggle
     }
 
     /**
@@ -103,10 +103,16 @@ class Particle {
         this._applyBoundaryConditions();
     }
 
-    /** @private Updates the particle's color, cycling through hues. */
+    /** @private Updates the particle's color, cycling through hues and pulsing saturation. */
     _updateColor() {
-        this.h = (this.h + 1) % 360; // Increment hue and wrap around 360
-        // Update this.color using this.currentLightness
+        this.h = (this.h + 5) % 360; // Increased hue cycling speed
+        // Dynamic saturation: pulses between 50% and 100% (75 +/- 25)
+        // The (this.h * 0.1) makes the saturation wave slower than the hue cycle.
+        this.s = 75 + Math.sin(this.h * 0.1) * 25;
+        // Ensure saturation stays within valid HSL range (0-100)
+        this.s = Math.max(0, Math.min(100, this.s));
+
+        // Update this.color using this.currentLightness (driven by interactions)
         this.color = `hsl(${this.h}, ${this.s}%, ${this.currentLightness}%)`;
     }
 
@@ -139,7 +145,7 @@ class Particle {
 
     /** @private Applies a gentle sinusoidal wiggle force to the particle's velocity. */
     _applyWiggle() {
-        this.wiggleAngle += 0.05;
+        this.wiggleAngle += 0.1; // Increased from 0.05 - Faster wiggle
         this.vx += Math.cos(this.wiggleAngle) * this.wiggleMagnitude;
         this.vy += Math.sin(this.wiggleAngle) * this.wiggleMagnitude;
     }
@@ -280,10 +286,24 @@ function initParticles() {
  * and requests the next frame.
  */
 function animate() {
-    // Clear canvas with a semi-transparent black to create trails effect
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    // Psychedelic canvas feedback loop
+    ctx.save();
+    ctx.translate(canvasWidth / 2, canvasHeight / 2);
+    ctx.rotate(0.005); // Small rotation
+    ctx.translate(-canvasWidth / 2, -canvasHeight / 2);
 
+    let scaleFactor = 1.01; // Zoom-in factor
+    let newWidth = canvasWidth * scaleFactor;
+    let newHeight = canvasHeight * scaleFactor;
+    let offsetX = (canvasWidth - newWidth) / 2;
+    let offsetY = (canvasHeight - newHeight) / 2;
+
+    // Draw the existing canvas onto itself, scaled and offset
+    // This requires the canvas object itself, not just the context.
+    ctx.drawImage(canvas, 0, 0, canvasWidth, canvasHeight, offsetX, offsetY, newWidth, newHeight);
+    ctx.restore();
+
+    // Update and draw particles AFTER the feedback effect
     particles.forEach(p => {
         p.update();
         p.draw();
