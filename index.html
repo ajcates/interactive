@@ -41,6 +41,8 @@
     <canvas id="canvas"></canvas>
     <div id="ui">
         <button onclick="resetCanvas()">Reset</button>
+        <button onclick="previousEffect()">Previous Effect</button>
+        <button onclick="nextEffect()">Next Effect</button>
     </div>
     <script>
         const canvas = document.getElementById('canvas');
@@ -57,6 +59,32 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
+        // Effect Styles
+        const effectStyles = [
+            {
+                name: "Default",
+                particleColor: () => `hsl(${Math.random() * 360}, 70%, 60%)`, // random colors
+                updateLogic: 'repel', // particles move away from mouse
+                backgroundAlpha: 0.1, // current trail effect
+                particleCount: 100
+            },
+            {
+                name: "Monochrome Trails",
+                particleColor: () => 'hsl(0, 0%, 100%)', // White
+                updateLogic: 'repel',
+                backgroundAlpha: 0.03, // Slower clearing for longer trails
+                particleCount: 150 // More particles
+            },
+            {
+                name: "Gravity Wells",
+                particleColor: () => `hsl(${Math.random() * 120 + 180}, 70%, 60%)`, // Cooler colors (blues/greens/purples)
+                updateLogic: 'attract', // particles move towards mouse
+                backgroundAlpha: 0.1,
+                particleCount: 75 // Fewer particles for clarity
+            }
+        ];
+        let currentEffectIndex = 0;
+
         // Particle class
         class Particle {
             constructor() {
@@ -65,7 +93,7 @@
                 this.vx = (Math.random() - 0.5) * 2;
                 this.vy = (Math.random() - 0.5) * 2;
                 this.size = Math.random() * 3 + 1;
-                this.color = `hsl(${Math.random() * 360}, 70%, 60%)`;
+                this.color = effectStyles[currentEffectIndex].particleColor();
             }
             update() {
                 // Move particle
@@ -83,8 +111,14 @@
                     let dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist < 100) {
                         let angle = Math.atan2(dy, dx);
-                        this.vx += Math.cos(angle) * 0.5;
-                        this.vy += Math.sin(angle) * 0.5;
+                        // Conditional logic based on effect style
+                        if (effectStyles[currentEffectIndex].updateLogic === 'attract') {
+                            this.vx -= Math.cos(angle) * 0.5; // Attract
+                            this.vy -= Math.sin(angle) * 0.5; // Attract
+                        } else { // Default 'repel'
+                            this.vx += Math.cos(angle) * 0.5; // Repel
+                            this.vy += Math.sin(angle) * 0.5; // Repel
+                        }
                     }
                 }
             }
@@ -99,7 +133,7 @@
         // Initialize particles
         function initParticles() {
             particles = [];
-            for (let i = 0; i < 100; i++) {
+            for (let i = 0; i < effectStyles[currentEffectIndex].particleCount; i++) {
                 particles.push(new Particle());
             }
         }
@@ -107,7 +141,7 @@
 
         // Animation loop
         function animate() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillStyle = `rgba(0, 0, 0, ${effectStyles[currentEffectIndex].backgroundAlpha})`;
             ctx.fillRect(0, 0, width, height);
             particles.forEach(p => {
                 p.update();
@@ -134,6 +168,17 @@
         // Reset canvas
         function resetCanvas() {
             initParticles();
+        }
+
+        // Effect switching functions
+        function nextEffect() {
+            currentEffectIndex = (currentEffectIndex + 1) % effectStyles.length;
+            resetCanvas(); // Re-initialize particles with the new style
+        }
+
+        function previousEffect() {
+            currentEffectIndex = (currentEffectIndex - 1 + effectStyles.length) % effectStyles.length;
+            resetCanvas(); // Re-initialize particles with the new style
         }
     </script>
 </body>
