@@ -9,15 +9,15 @@ let activeTouches = []; // Stores active touch points (and mouse as a special to
 
 // Defines the available shapes for particles. Used in Particle class for shape cycling.
 const SHAPES = ['circle', 'square', 'triangle'];
-const PARTICLE_COUNT = 100;
-const MAX_PARTICLE_SPEED = 7; // Increased from 5
+const PARTICLE_COUNT = 300;
+const MAX_PARTICLE_SPEED = 1; // Increased from 5
 const PARTICLE_SIZE_MIN = 2;
-const PARTICLE_SIZE_MAX = 4;
-const SHAPE_CHANGE_INTERVAL = 200; // In frames
-const INTERACTION_RADIUS = 150;
+const PARTICLE_SIZE_MAX = 24;
+const SHAPE_CHANGE_INTERVAL = 1; // In frames
+const INTERACTION_RADIUS = 100;
 const SQUARED_INTERACTION_RADIUS = INTERACTION_RADIUS * INTERACTION_RADIUS;
-const DIRECT_ATTRACTION_FACTOR = 0.015;
-const SWIRL_FACTOR = 0.05;
+const DIRECT_ATTRACTION_FACTOR = 0.02;
+const SWIRL_FACTOR = 0.01;
 const MOUSE_IDENTIFIER = -1; // Special ID for mouse interaction to distinguish from touch events
 const MAX_PARTICLE_SPEED_SQUARED = MAX_PARTICLE_SPEED * MAX_PARTICLE_SPEED; // Updated to 7*7 = 49
 
