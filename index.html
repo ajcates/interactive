@@ -89,6 +89,16 @@
                 backgroundAlpha: 0.1,
                 particleCount: 100,
                 rotationSpeed: 0.002
+            },
+            {
+                name: "Psychedelic Feedback",
+                particleColor: () => `hsl(${Math.random() * 360}, 90%, 65%)`,
+                updateLogic: 'repel',
+                particleCount: 80,
+                feedbackRotation: 0.005,
+                feedbackZoom: 1.01,
+                backgroundAlpha: 0.01, // For the main fill when feedback is active
+                rotationSpeed: 0 // Explicitly set to 0 to avoid particle-context rotation
             }
         ];
         let currentEffectIndex = 0;
@@ -151,24 +161,51 @@
         // Animation loop
         function animate() {
             const currentStyle = effectStyles[currentEffectIndex];
-            if (currentStyle.rotationSpeed && currentStyle.rotationSpeed !== 0) {
-                currentRotationAngle += currentStyle.rotationSpeed;
+            let particleContextIsRotated = false; // Flag to track if particles need ctx.restore
+
+            // Psychedelic Feedback Loop Logic
+            if (currentStyle.feedbackZoom && currentStyle.feedbackZoom !== 1) { // Check for feedbackZoom specifically
                 ctx.save();
                 ctx.translate(width / 2, height / 2);
-                ctx.rotate(currentRotationAngle);
+                ctx.rotate(currentStyle.feedbackRotation || 0);
+                ctx.scale(currentStyle.feedbackZoom, currentStyle.feedbackZoom);
                 ctx.translate(-width / 2, -height / 2);
+                // Draw the previous frame (canvas itself) transformed
+                // Use a globalCompositeOperation to blend if needed, though default should be fine.
+                ctx.drawImage(canvas, 0, 0, width, height);
+                ctx.restore();
+
+                // Apply a very faint background fill on top of the feedback
+                ctx.fillStyle = `rgba(0, 0, 0, ${currentStyle.backgroundAlpha !== undefined ? currentStyle.backgroundAlpha : 0.1})`;
+                ctx.fillRect(0, 0, width, height);
+
+            } else {
+                // Standard Background Clearing & Optional Particle Context Rotation (Non-Feedback Styles)
+                if (currentStyle.rotationSpeed && currentStyle.rotationSpeed !== 0) {
+                    currentRotationAngle += currentStyle.rotationSpeed;
+                    ctx.save();
+                    ctx.translate(width / 2, height / 2);
+                    ctx.rotate(currentRotationAngle);
+                    ctx.translate(-width / 2, -height / 2);
+                    particleContextIsRotated = true; // Mark that particles will be drawn in rotated context
+                }
+
+                // Standard background fill for non-feedback styles
+                ctx.fillStyle = `rgba(0, 0, 0, ${currentStyle.backgroundAlpha !== undefined ? currentStyle.backgroundAlpha : 0.1})`;
+                ctx.fillRect(0, 0, width, height);
             }
 
-            ctx.fillStyle = `rgba(0, 0, 0, ${currentStyle.backgroundAlpha})`;
-            ctx.fillRect(0, 0, width, height);
+            // Particle Drawing
             particles.forEach(p => {
                 p.update();
                 p.draw();
             });
 
-            if (currentStyle.rotationSpeed && currentStyle.rotationSpeed !== 0) {
+            // Restore context if it was rotated for particles (non-feedback rotation)
+            if (particleContextIsRotated) {
                 ctx.restore();
             }
+
             requestAnimationFrame(animate);
         }
         animate();
