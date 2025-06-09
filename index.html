@@ -81,9 +81,18 @@
                 updateLogic: 'attract', // particles move towards mouse
                 backgroundAlpha: 0.1,
                 particleCount: 75 // Fewer particles for clarity
+            },
+            {
+                name: "Trippy Spin",
+                particleColor: () => `hsl(${Math.random() * 360}, 80%, 70%)`,
+                updateLogic: 'repel',
+                backgroundAlpha: 0.1,
+                particleCount: 100,
+                rotationSpeed: 0.002
             }
         ];
         let currentEffectIndex = 0;
+        let currentRotationAngle = 0;
 
         // Particle class
         class Particle {
@@ -141,12 +150,25 @@
 
         // Animation loop
         function animate() {
-            ctx.fillStyle = `rgba(0, 0, 0, ${effectStyles[currentEffectIndex].backgroundAlpha})`;
+            const currentStyle = effectStyles[currentEffectIndex];
+            if (currentStyle.rotationSpeed && currentStyle.rotationSpeed !== 0) {
+                currentRotationAngle += currentStyle.rotationSpeed;
+                ctx.save();
+                ctx.translate(width / 2, height / 2);
+                ctx.rotate(currentRotationAngle);
+                ctx.translate(-width / 2, -height / 2);
+            }
+
+            ctx.fillStyle = `rgba(0, 0, 0, ${currentStyle.backgroundAlpha})`;
             ctx.fillRect(0, 0, width, height);
             particles.forEach(p => {
                 p.update();
                 p.draw();
             });
+
+            if (currentStyle.rotationSpeed && currentStyle.rotationSpeed !== 0) {
+                ctx.restore();
+            }
             requestAnimationFrame(animate);
         }
         animate();
@@ -167,6 +189,7 @@
 
         // Reset canvas
         function resetCanvas() {
+            currentRotationAngle = 0;
             initParticles();
         }
 
