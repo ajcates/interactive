@@ -2,6 +2,15 @@
 const canvas = document.getElementById('canvas');
 let ctx; // Will be initialized after checking canvas
 
+let audioContext;
+let analyser;
+let microphone;
+let javascriptNode; // For processing audio data
+let audioDataArray; // To store frequency data
+let audioSource; // To store the microphone audio source
+
+const FFT_SIZE = 256; // Size of the FFT for frequency analysis, can be adjusted
+
 let canvasWidth, canvasHeight; // Renamed for clarity
 let particles = [];
 /** @type {{id: number, x: number, y: number}[]} */
@@ -20,6 +29,38 @@ const DIRECT_ATTRACTION_FACTOR = 0.02;
 const SWIRL_FACTOR = 0.01;
 const MOUSE_IDENTIFIER = -1; // Special ID for mouse interaction to distinguish from touch events
 const MAX_PARTICLE_SPEED_SQUARED = MAX_PARTICLE_SPEED * MAX_PARTICLE_SPEED; // Updated to 7*7 = 49
+
+// -- Audio Setup --
+async function handleAudioPermission() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Your browser does not support microphone input!');
+        return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = FFT_SIZE;
+        audioDataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        // Connect the microphone stream to the analyser
+        audioSource = audioContext.createMediaStreamSource(stream);
+        audioSource.connect(analyser);
+
+        // Further processing or starting the animation that depends on audio can be triggered here
+        // For now, let's log success
+        console.log("Microphone access granted and audio context initialized.");
+
+        // Optional: If the animation should only start/resume after permission
+        // if (!animationRunning) { // Assuming an animationRunning flag
+        //    animate();
+        // }
+
+    } catch (err) {
+        console.error('Error accessing microphone:', err);
+        alert('Could not access the microphone. Please allow microphone access in your browser settings.');
+    }
+}
 
 // -- Canvas Setup --
 
@@ -93,10 +134,11 @@ class Particle {
      * Updates the particle's state (position, color, shape, etc.) for each animation frame.
      */
     update() {
+        this._applyAudioInfluence(); // Add this line
         this._updateColor();
         this._updateShape();
         this._applyWiggle();
-        this._handleInteractions();
+        this._handleInteractions(); // Interactions can modify l and size further
         this._updateCurrentVisuals(); // Smoothly update visual properties
         this._capSpeed();
         this._updatePosition();
@@ -150,6 +192,51 @@ class Particle {
         this.vy += Math.sin(this.wiggleAngle) * this.wiggleMagnitude;
     }
 
+    _applyAudioInfluence() {
+        if (analyser && audioDataArray) {
+            analyser.getByteFrequencyData(audioDataArray);
+            let sum = 0;
+            for (let i = 0; i < audioDataArray.length; i++) {
+                sum += audioDataArray[i];
+            }
+            const averageLevel = sum / audioDataArray.length;
+
+            // Normalize the average level (0-255) to a factor (e.g., 0-1 or 0-2)
+            // Adjust this factor based on desired sensitivity
+            const audioFactor = averageLevel / 128; // Results in a factor around 0-2
+
+            // Influence base lightness and size
+            // The idea is that louder sounds make particles brighter and slightly larger.
+            // We'll adjust the *target* lightness (this.l) and *target* size (this.size).
+            // The _updateCurrentVisuals method will then smoothly transition to these targets.
+
+            const maxLightnessBoostFromAudio = 20; // Max additional lightness from audio
+            const maxSizeBoostFromAudio = 5;    // Max additional size from audio
+
+            // Apply audio effect to base values before other interactions
+            // This means _handleInteractions might override or add to this.
+            // Let's refine this: audio should provide a base modulation,
+            // and interactions can add on top.
+            // So, we set this.l and this.size based on audio,
+            // and _handleInteractions will use these as the new "base"
+            // if an interaction occurs.
+
+            this.l = this.baseLightness + (maxLightnessBoostFromAudio * audioFactor);
+            this.l = Math.max(0, Math.min(100, this.l)); // Clamp lightness
+
+            this.size = this.baseSize + (maxSizeBoostFromAudio * audioFactor);
+            this.size = Math.max(PARTICLE_SIZE_MIN, Math.min(PARTICLE_SIZE_MAX, this.size)); // Clamp size
+
+        } else {
+            // If audio is not active, ensure lightness and size revert to their base values
+            // if no other interactions are happening.
+            // This logic is already somewhat handled in _handleInteractions,
+            // but it's good to be explicit if audio is the primary modulator.
+            // For now, if analyser is not ready, we don't change l and size here.
+            // _handleInteractions will set them if no touch/mouse.
+        }
+    }
+
     /** @private Handles interactions with active touch points (including mouse). */
     _handleInteractions() {
         if (activeTouches.length > 0) {
@@ -186,21 +273,18 @@ class Particle {
 
             if (interactionCount > 0) {
                 // Average the boosts if multiple interactions affect the same particle
-                this.l = this.baseLightness + (totalLightnessBoost / interactionCount);
-                this.size = this.baseSize + (totalSizeBoost / interactionCount);
+                // Apply interaction boost ON TOP of the current this.l and this.size (which might be audio-influenced)
+                this.l = Math.max(0, Math.min(100, this.l + (totalLightnessBoost / interactionCount) - this.baseLightness));
+                this.size = Math.max(PARTICLE_SIZE_MIN, this.size + (totalSizeBoost / interactionCount) - this.baseSize);
 
-                // Clamp lightness and size
-                this.l = Math.max(0, Math.min(100, this.l));
-                this.size = Math.max(1, this.size); // Ensure size remains positive
             } else {
-                // No active interaction within radius, revert to base (placeholder for now)
-                this.l = this.baseLightness;
-                this.size = this.baseSize;
+                // No active interaction *for this particle*, keep audio-influenced values.
+                // So, we don't reset to baseLightness/baseSize here anymore.
+                // The values set by _applyAudioInfluence will persist if no direct interaction.
             }
         } else {
-            // No active touches on screen, revert to base (placeholder for now)
-            this.l = this.baseLightness;
-            this.size = this.baseSize;
+            // No active touches on screen. Values set by _applyAudioInfluence should persist.
+            // So, we don't reset to baseLightness/baseSize here either.
         }
     }
 
@@ -440,6 +524,13 @@ function main() {
     if (!ctx) {
         console.error("Error: 2D context not available!");
         return;
+    }
+
+    const startButton = document.getElementById('startButton');
+    if (startButton) {
+        startButton.addEventListener('click', handleAudioPermission);
+    } else {
+        console.error("Start button not found!");
     }
 
     resizeCanvas(); // Set initial canvas size
